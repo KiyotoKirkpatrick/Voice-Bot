@@ -14,11 +14,8 @@ const client = new Discord.Client()
 const speechClient = new speech.SpeechClient({
   keyFilename: './google_creds.json'
 })
-var voiceChannel = null
-var textChannel = null
-var listenStreams = new Map()
-var listening = false
-
+const voiceConnections = new Map()
+const guildLangs = new Map()
 
 client.login(discord_token)
 
@@ -34,20 +31,42 @@ function handleMessage(message) {
   if (!message.content.startsWith(prefix)) {
     return
   }
-  var command = message.content.toLowerCase().slice(1).split(' ')[0]
+  const parsedMsg = message.content.slice(prefix.length).split(' ')
+  const command = parsedMsg[0].toLowerCase()
 
   switch (command) {
     case 'listen':
-      textChannel = message.channel
       commandListen(message)
       break
+    case 'stop':
+      destroyConnection(message.member.guild.id)
+      break
+    case 'lang':
+      if (parsedMsg[1]) {
+        // validLangList = Array.from($('.devsite-table-wrapper tr td:nth-child(2)')).map(val => val.innerHTML).join(',')
+        // in https://cloud.google.com/speech/docs/languages
+        var validLangList = "af-ZA,am-ET,hy-AM,az-AZ,id-ID,ms-MY,bn-BD,bn-IN,ca-ES,cs-CZ,da-DK,de-DE,en-AU,en-CA,en-GH,en-GB,en-IN,en-IE,en-KE,en-NZ,en-NG,en-PH,en-ZA,en-TZ,en-US,es-AR,es-BO,es-CL,es-CO,es-CR,es-EC,es-SV,es-ES,es-US,es-GT,es-HN,es-MX,es-NI,es-PA,es-PY,es-PE,es-PR,es-DO,es-UY,es-VE,eu-ES,fil-PH,fr-CA,fr-FR,gl-ES,ka-GE,gu-IN,hr-HR,zu-ZA,is-IS,it-IT,jv-ID,kn-IN,km-KH,lo-LA,lv-LV,lt-LT,hu-HU,ml-IN,mr-IN,nl-NL,ne-NP,nb-NO,pl-PL,pt-BR,pt-PT,ro-RO,si-LK,sk-SK,sl-SI,su-ID,sw-TZ,sw-KE,fi-FI,sv-SE,ta-IN,ta-SG,ta-LK,ta-MY,te-IN,vi-VN,tr-TR,ur-PK,ur-IN,el-GR,bg-BG,ru-RU,sr-RS,uk-UA,he-IL,ar-IL,ar-JO,ar-AE,ar-BH,ar-DZ,ar-SA,ar-IQ,ar-KW,ar-MA,ar-TN,ar-OM,ar-PS,ar-QA,ar-LB,ar-EG,fa-IR,hi-IN,th-TH,ko-KR,cmn-Hant-TW,yue-Hant-HK,ja-JP,cmn-Hans-HK,cmn-Hans-CN"
+        if (validLangList.split(',').indexOf(parsedMsg[1]) !== -1) {
+          guildLangs.set(message.member.guild.id, parsedMsg[1])
+          message.reply(` changed language to ${parsedMsg[1]}. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`)
+        } else {
+          message.reply(` invalid language. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`)
+        }
+      } else {
+        const lang = getGuildLang(message.member.guild.id)
+        message.reply(` current language: ${lang}. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`)
+      }
+      break
+    case 'help':
+      message.reply(` list of commands: ${prefix}help, ${prefix}listen, ${prefix}stop, ${prefix}lang.`)
+      break
     default:
-      message.reply(" command not recognized! Type '!help' for a list of commands.")
+      message.reply(` command not recognized! Type '${prefix}help' for a list of commands.`)
   }
 }
 
 function commandListen(message) {
-  member = message.member
+  const member = message.member
   if (!member) {
     return
   }
@@ -55,30 +74,37 @@ function commandListen(message) {
     message.reply(" you need to be in a voice channel first.")
     return
   }
-  if (listening) {
-    message.reply(" a voice channel is already being listened to!")
-    return
-  }
 
-  listening = true
-  voiceChannel = member.voiceChannel
-  textChannel.send('Listening in to **' + member.voiceChannel.name + '**!')
+  message.channel.send('Listening in to **' + member.voiceChannel.name + '**!')
 
-  voiceChannel.join().then((connection) => {
+  destroyConnection(member.guild.id)
+  member.voiceChannel.join().then((connection) => {
+    voiceConnections.set(member.guild.id, connection)
+
     connection.playFile('./beep.mp3')
     const receiver = connection.createReceiver()
-    connection.on('speaking', (member, speaking) => {
-      if (speaking) {
-        const audioStream = receiver.createPCMStream(member)
-        audioStreamToText(audioStream, text => {
-          textChannel.send(`**${member.username}**: ${text}`)
+    connection.on('speaking', (memberSpeaking, isSpeaking) => {
+      if (isSpeaking) {
+        const audioStream = receiver.createPCMStream(memberSpeaking)
+        audioStreamToText(audioStream, member.guild.id, text => {
+          message.channel.send(`**${memberSpeaking.username}**: ${text}`)
         })
       }
     })
   }).catch(console.error)
 }
 
-function audioStreamToText(audioStream, cb) {
+function destroyConnection(connectionID) {
+  if (oldConnection = voiceConnections.get(connectionID)) {
+    oldConnection.disconnect()
+  }
+}
+
+function getGuildLang(guildID) {
+  return guildLangs.get(guildID) || 'es-ES'
+}
+
+function audioStreamToText(audioStream, guildID, cb) {
   tempfs.open({
     suffix: '.pcm'
   }, function (err, file) {
@@ -108,7 +134,7 @@ function audioStreamToText(audioStream, cb) {
           config: {
             encoding: 'LINEAR16',
             sampleRateHertz: 16000,
-            languageCode: 'es-ES',
+            languageCode: getGuildLang(guildID),
           }
         })
           .then(data => {
@@ -119,7 +145,7 @@ function audioStreamToText(audioStream, cb) {
               if (results && results.length) {
                 cb(results[0].alternatives[0].transcript)
               } else {
-                console.log('No text found')
+                // No text found
               }
             }
           })
