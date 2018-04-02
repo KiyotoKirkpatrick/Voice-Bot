@@ -83,7 +83,6 @@ function audioStreamToText(audioStream, cb) {
     suffix: '.pcm'
   }, function (err, file) {
     if (err) { throw err }
-    console.log('Processing file: ' + file.path)
     ffmpeg(audioStream)
       .inputFormat('s32le')
       .audioFrequency(16000)
@@ -96,11 +95,10 @@ function audioStreamToText(audioStream, cb) {
         file.unlink()
       })
       .on('end', function () {
-        console.log('Recognising voice in: ' + file.path)
         const audioContent = fs.readFileSync(file.path).toString('base64')
         file.unlink()
         if (!audioContent) {
-          console.log('No audio recorded')
+          // No audio recorded
           return false
         }
         speechClient.recognize({
