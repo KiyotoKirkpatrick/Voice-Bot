@@ -18,14 +18,7 @@ const voiceConnections = new Map()
 const guildLangs = new Map()
 
 client.login(discord_token)
-
-client.on('ready', handleReady.bind(this))
-
 client.on('message', handleMessage.bind(this))
-
-function handleReady() {
-  console.log("I'm ready!")
-}
 
 function handleMessage(message) {
   if (!message.content.startsWith(prefix)) {
@@ -85,13 +78,24 @@ function commandListen(message) {
     const receiver = connection.createReceiver()
     connection.on('speaking', (memberSpeaking, isSpeaking) => {
       if (isSpeaking) {
-        const audioStream = receiver.createPCMStream(memberSpeaking)
-        audioStreamToText(audioStream, member.guild.id, text => {
-          message.channel.send(`**${memberSpeaking.username}**: ${text}`)
-        })
+        createPCMStream(receiver, message, memberSpeaking)
       }
     })
   }).catch(console.error)
+}
+
+function createPCMStream(receiver, message, memberSpeaking, iteration = 0) {
+  if (iteration >= 3) return false
+  try {
+    const audioStream = receiver.createPCMStream(memberSpeaking)
+    audioStreamToText(audioStream, message.member.guild.id, text => {
+      message.channel.send(`**${memberSpeaking.username}**: ${text}`)
+    })
+  } catch (e) {
+    setTimeout(() => {
+      createPCMStream(receiver, message, memberSpeaking, iteration++)
+    }, 150)
+  }
 }
 
 function destroyConnection(connectionID) {
