@@ -105,7 +105,7 @@ function destroyConnection(connectionID) {
 }
 
 function getGuildLang(guildID) {
-  return guildLangs.get(guildID) || 'es-ES'
+  return guildLangs.get(guildID) || 'en-US'
 }
 
 function audioStreamToText(audioStream, guildID, cb) {
