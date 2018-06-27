@@ -58,7 +58,10 @@ function handleMessage(message) {
       }
       break
     case 'help':
-      message.reply(` list of commands: ${prefix}help, ${prefix}listen, ${prefix}stop, ${prefix}lang.`).catch(defaultCatcher)
+      message.reply(` list of commands: ${prefix}help, ${prefix}listen, ${prefix}stop, ${prefix}lang, ${prefix}about.`).catch(defaultCatcher)
+      break
+    case 'about':
+      message.reply(` this bot is managed by @NiciusB#8642. You can check my website at https://balbona.me/ or send me an email at nuno@balbona.me`).catch(defaultCatcher)
       break
     default:
       message.reply(` command not recognized! Type '${prefix}help' for a list of commands.`).catch(defaultCatcher)
