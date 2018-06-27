@@ -16,7 +16,15 @@ const speechClient = new speech.SpeechClient({
 const voiceConnections = new Map()
 const guildLangs = new Map()
 
+function defaultCatcher(err) {
+  console.debug(err)
+}
+
 client.login(discord_token)
+console.log(`Voice-Bot: Logging in to discord!`)
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.tag} serving to ${client.guilds.array().length} servers`)
+})
 client.on('message', handleMessage.bind(this))
 
 function handleMessage(message) {
@@ -40,20 +48,20 @@ function handleMessage(message) {
         var validLangList = "af-ZA,am-ET,hy-AM,az-AZ,id-ID,ms-MY,bn-BD,bn-IN,ca-ES,cs-CZ,da-DK,de-DE,en-AU,en-CA,en-GH,en-GB,en-IN,en-IE,en-KE,en-NZ,en-NG,en-PH,en-ZA,en-TZ,en-US,es-AR,es-BO,es-CL,es-CO,es-CR,es-EC,es-SV,es-ES,es-US,es-GT,es-HN,es-MX,es-NI,es-PA,es-PY,es-PE,es-PR,es-DO,es-UY,es-VE,eu-ES,fil-PH,fr-CA,fr-FR,gl-ES,ka-GE,gu-IN,hr-HR,zu-ZA,is-IS,it-IT,jv-ID,kn-IN,km-KH,lo-LA,lv-LV,lt-LT,hu-HU,ml-IN,mr-IN,nl-NL,ne-NP,nb-NO,pl-PL,pt-BR,pt-PT,ro-RO,si-LK,sk-SK,sl-SI,su-ID,sw-TZ,sw-KE,fi-FI,sv-SE,ta-IN,ta-SG,ta-LK,ta-MY,te-IN,vi-VN,tr-TR,ur-PK,ur-IN,el-GR,bg-BG,ru-RU,sr-RS,uk-UA,he-IL,ar-IL,ar-JO,ar-AE,ar-BH,ar-DZ,ar-SA,ar-IQ,ar-KW,ar-MA,ar-TN,ar-OM,ar-PS,ar-QA,ar-LB,ar-EG,fa-IR,hi-IN,th-TH,ko-KR,cmn-Hant-TW,yue-Hant-HK,ja-JP,cmn-Hans-HK,cmn-Hans-CN"
         if (validLangList.split(',').indexOf(parsedMsg[1]) !== -1) {
           guildLangs.set(message.member.guild.id, parsedMsg[1])
-          message.reply(` changed language to ${parsedMsg[1]}. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`)
+          message.reply(` changed language to ${parsedMsg[1]}. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`).catch(defaultCatcher)
         } else {
-          message.reply(` invalid language. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`)
+          message.reply(` invalid language. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`).catch(defaultCatcher)
         }
       } else {
         const lang = getGuildLang(message.member.guild.id)
-        message.reply(` current language: ${lang}. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`)
+        message.reply(` current language: ${lang}. (Use BCP-47 identifier: https://cloud.google.com/speech/docs/languages)`).catch(defaultCatcher)
       }
       break
     case 'help':
-      message.reply(` list of commands: ${prefix}help, ${prefix}listen, ${prefix}stop, ${prefix}lang.`)
+      message.reply(` list of commands: ${prefix}help, ${prefix}listen, ${prefix}stop, ${prefix}lang.`).catch(defaultCatcher)
       break
     default:
-      message.reply(` command not recognized! Type '${prefix}help' for a list of commands.`)
+      message.reply(` command not recognized! Type '${prefix}help' for a list of commands.`).catch(defaultCatcher)
   }
 }
 
@@ -63,11 +71,11 @@ function commandListen(message) {
     return
   }
   if (!member.voiceChannel) {
-    message.reply(" you need to be in a voice channel first.")
+    message.reply(" you need to be in a voice channel first.").catch(defaultCatcher)
     return
   }
 
-  message.channel.send('Listening in to **' + member.voiceChannel.name + '**!')
+  message.channel.send('Listening in to **' + member.voiceChannel.name + '**!').catch(defaultCatcher)
 
   destroyConnection(member.guild.id)
   member.voiceChannel.join().then((connection) => {
@@ -80,7 +88,7 @@ function commandListen(message) {
         createPCMStream(receiver, message, memberSpeaking)
       }
     })
-  }).catch(console.error)
+  }).catch(defaultCatcher)
 }
 
 function createPCMStream(receiver, message, memberSpeaking, iteration = 0) {
@@ -88,7 +96,7 @@ function createPCMStream(receiver, message, memberSpeaking, iteration = 0) {
   try {
     const audioStream = receiver.createPCMStream(memberSpeaking)
     audioStreamToText(audioStream, message.member.guild.id, text => {
-      message.channel.send(`**${memberSpeaking.username}**: ${text}`)
+      message.channel.send(`**${memberSpeaking.username}**: ${text}`).catch(defaultCatcher)
     })
   } catch (e) {
     setTimeout(() => {
