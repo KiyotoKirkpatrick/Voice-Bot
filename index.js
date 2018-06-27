@@ -6,7 +6,6 @@ const tempfs = require('temp-fs')
 
 var config = JSON.parse(fs.readFileSync("./settings.json", "utf-8"))
 
-const WIT_API_KEY = config.wit_api_key
 const prefix = config.prefix
 const discord_token = config.discord_token
 
