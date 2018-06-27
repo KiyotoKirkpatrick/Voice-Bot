@@ -17,6 +17,7 @@ const voiceConnections = new Map()
 const guildLangs = new Map()
 
 function defaultCatcher(err) {
+  if (err.code === 50013) return false // Missing permissions: Not our problem
   console.debug(err)
 }
 
