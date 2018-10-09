@@ -3,6 +3,7 @@ const Discord = require("discord.js")
 const speech = require('@google-cloud/speech')
 const ffmpeg = require('fluent-ffmpeg')
 const tempfs = require('temp-fs')
+const Stream = require("stream")
 
 var discordKeys = JSON.parse(fs.readFileSync("./keys/discord-keys.json", "utf-8"))
 
@@ -27,6 +28,8 @@ client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag} serving to ${client.guilds.array().length} servers`)
 })
 client.on('message', handleMessage.bind(this))
+
+
 
 function handleMessage(message) {
   if (!message.content.startsWith(prefix)) {
@@ -85,27 +88,35 @@ function commandListen(message) {
   member.voiceChannel.join().then((connection) => {
     voiceConnections.set(member.guild.id, connection)
 
-    connection.playFile('./beep.mp3')
+    connection.playFile('./sounds/beep.mp3')
     const receiver = connection.createReceiver()
+
     connection.on('speaking', (memberSpeaking, isSpeaking) => {
-      if (isSpeaking) {
-        createPCMStream(receiver, message, memberSpeaking)
+      if (isSpeaking == true) {
+        createStream(receiver, message, memberSpeaking)
       }
     })
   }).catch(defaultCatcher)
 }
 
-function createPCMStream(receiver, message, memberSpeaking, iteration = 0) {
-  if (iteration >= 3) return false
+function createStream(receiver, message, memberSpeaking, iteration = 0) {
+  if (iteration >= 3) {
+    console.log("CreateStream failed too many times. Quitting.")
+    return false
+  }
+
   try {
-    const audioStream = receiver.createPCMStream(memberSpeaking)
+    // let audioStream = receiver.createStream(memberSpeaking, {mode: 'pcm'})
+    let audioStream = receiver.createPCMStream(memberSpeaking)
+    // let audioStream = receiver.createOpusStream(memberSpeaking)
     audioStreamToText(audioStream, message, text => {
+      console.log("Received Text: ", text)
       message.channel.send(`**${memberSpeaking.username}**: ${text}`).catch(defaultCatcher)
     })
   } catch (e) {
     setTimeout(() => {
-      createPCMStream(receiver, message, memberSpeaking, iteration++)
-    }, 150)
+      createStream(receiver, message, memberSpeaking, iteration++)
+    }, 10)
   }
 }
 
@@ -120,6 +131,135 @@ function getGuildLang(guildID) {
 }
 
 function audioStreamToText(audioStream, message, cb) {
+  console.log("Beginning audioStreamToText")
+  let guildID = message.member.guild.id
+  let input = new Stream.PassThrough
+  let converted = new Stream.PassThrough
+  // let audioFilePath = './temp/audio.pcm'
+  // let fileStream = fs.createWriteStream(audioFilePath);
+  // let fileStream = fs.createWriteStream(new Buffer())
+
+  // const request = {
+  //   config: {
+  //     encoding: 'OGG_OPUS',
+  //     sampleRateHertz: 48000,
+  //     languageCode: getGuildLang(guildID),
+  //   },
+  //   interimResults: true, // If you want interim results, set this to true
+  // };
+  const request = {
+    config: {
+      encoding: 'LINEAR16',
+      sampleRateHertz: 16000,
+      // languageCode: getGuildLang(guildID),
+      languageCode: 'en-US',
+    },
+    interimResults: false, // If you want interim results, set this to true
+  };
+
+  let recognizeStream = speechClient
+    .streamingRecognize(request)
+    .on('start', () => {
+      console.log('Google recognizeStream start.')
+    })
+    .on('error', err => {
+      console.log('An error occurred: ', err)
+      message.channel.send(`An error occurred: ${err}`).catch(defaultCatcher)
+    })
+    // .on('data', data => {
+    //   console.log("Speech data received.")
+    //   console.log(data)
+    //   if (data.error) {
+    //     console.log('An error occurred: ' + data.error.message)
+    //   } else {
+    //     console.log("No data error. Attempting callback.")
+    //     const results = data[0] ? data[0].results : false
+    //     if (results && results.length) {
+    //       cb(results[0].alternatives[0].transcript)
+    //     } else {
+    //       console.log("No text from Speech API.")
+    //       console.log("Results:")
+    //       console.log(data)
+    //       message.channel.send(`No text from Speech API.\nResults: ${data}`).catch(defaultCatcher)
+    //     }
+    //   }
+    // })
+    .on('data', data =>
+      process.stdout.write(
+        data.results[0] && data.results[0].alternatives[0]
+          ? `Transcription: ${data.results[0].alternatives[0].transcript}\n`
+          : `\n\nReached transcription time limit, press Ctrl+C\n`
+      )
+    )
+    .on('end', () => {
+      console.log("End of recognizeStream");
+      // recognizeStream.end();
+    })
+
+  // audioStream
+  // .on('end', () => {
+  //   console.log("listen off");
+  //   // recognizeStream.end();
+  // })
+  // .on('error', (err) => {
+  //   console.log("Error on ReadableStream: ", err);
+  //   recognizeStream.end();
+  // })
+  // .pipe(recognizeStream)
+
+  // audioStream
+  //   .on('data', (chunk) => {
+  //     console.log(`Received ${chunk.length} bytes of data.`)
+  //     chunk.pipe(recognizeStream)
+  //   })
+  //   .on('end', () => {
+  //     console.log("listen off");
+  //     recognizeStream.end();
+  //   })
+  //   .on('error', (err) => {
+  //     console.log("Error on ReadableStream: ", err);
+  //     recognizeStream.end();
+  //   })
+
+  ffmpeg(audioStream)
+    .inputFormat('s32le')
+    .audioFrequency(16000)
+    // .audioChannels(1)
+    .audioCodec('pcm_s16le')
+    .format('s16le')
+    .on('start', () => {
+      console.log('ffmpeg start')
+    })
+    .on('error', err => {
+      console.log('An error occurred: ' + err.message)
+      file.unlink()
+    })
+    .on('end', () => {
+      console.log("ffmpeg end");
+      // recognizeStream.end();
+    })
+    .pipe(converted)
+
+  audioStream
+  .on('end', () => {
+    console.log("AudioStream end.");
+    converted.pipe(recognizeStream)
+    // recognizeStream.end();
+  })
+  .on('error', (err) => {
+    console.log("Error on ReadableStream: ", err);
+    recognizeStream.end();
+  })
+  // .pipe(recognizeStream)
+}
+
+
+
+function audioStreamToText2(audioStream, message, cb) {
+  // audioStream.on('data', (chunk) => {
+  //     console.log(`Received ${chunk.length} bytes of data.`);
+  // });
+
   let guildID = message.member.guild.id
   tempfs.open({
     suffix: '.pcm'
@@ -127,7 +267,7 @@ function audioStreamToText(audioStream, message, cb) {
     if (err) { throw err }
     ffmpeg(audioStream)
       .inputFormat('s32le')
-      .audioFrequency(16000)
+      .audioFrequency(48000)
       .audioChannels(1)
       .audioCodec('pcm_s16le')
       .format('s16le')
