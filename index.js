@@ -99,7 +99,7 @@ function createPCMStream(receiver, message, memberSpeaking, iteration = 0) {
   if (iteration >= 3) return false
   try {
     const audioStream = receiver.createPCMStream(memberSpeaking)
-    audioStreamToText(audioStream, message.member.guild.id, text => {
+    audioStreamToText(audioStream, message, text => {
       message.channel.send(`**${memberSpeaking.username}**: ${text}`).catch(defaultCatcher)
     })
   } catch (e) {
@@ -119,7 +119,8 @@ function getGuildLang(guildID) {
   return guildLangs.get(guildID) || 'en-US'
 }
 
-function audioStreamToText(audioStream, guildID, cb) {
+function audioStreamToText(audioStream, message, cb) {
+  let guildID = message.member.guild.id
   tempfs.open({
     suffix: '.pcm'
   }, function (err, file) {
@@ -140,6 +141,7 @@ function audioStreamToText(audioStream, guildID, cb) {
         file.unlink()
         if (!audioContent) {
           // No audio recorded
+          console.log("No audio recorded")
           return false
         }
         speechClient.recognize({
@@ -160,12 +162,16 @@ function audioStreamToText(audioStream, guildID, cb) {
               if (results && results.length) {
                 cb(results[0].alternatives[0].transcript)
               } else {
-                // No text found
+                console.log("No text from Speech API.")
+                console.log("Results:")
+                console.log(data)
+                message.channel.send(`No text from Speech API.\nResults: ${data}`).catch(defaultCatcher)
               }
             }
           })
           .catch(err => {
             console.log('An error occurred: ', err)
+            message.channel.send(`An error occurred: ${err}`).catch(defaultCatcher)
           })
       })
   })
