@@ -4,14 +4,14 @@ const speech = require('@google-cloud/speech')
 const ffmpeg = require('fluent-ffmpeg')
 const tempfs = require('temp-fs')
 
-var config = JSON.parse(fs.readFileSync("./settings.json", "utf-8"))
+var discordKeys = JSON.parse(fs.readFileSync("./keys/discord-keys.json", "utf-8"))
 
-const prefix = config.prefix
-const discord_token = config.discord_token
+const prefix = discordKeys.prefix
+const discord_token = discordKeys.discord_token
 
 const client = new Discord.Client()
 const speechClient = new speech.SpeechClient({
-  keyFilename: './google_creds.json'
+  keyFilename: './keys/google-keys.json'
 })
 const voiceConnections = new Map()
 const guildLangs = new Map()
